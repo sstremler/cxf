@@ -26,6 +26,7 @@ import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageImpl;
+import org.junit.Assert;
 import org.junit.Test;
 
 import javax.security.auth.Subject;
@@ -33,6 +34,7 @@ import java.security.Principal;
 import java.security.PrivilegedAction;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -180,7 +182,7 @@ public class DefaultLogEventMapperTest {
             t1.start();
             t2.start();
             try {
-                countDownLatch.await();
+                Assert.assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

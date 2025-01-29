@@ -125,7 +125,7 @@ public class DefaultLogEventMapper {
         return null;
     }
 
-    private String getJAASPrincipal() {
+    public String getJAASPrincipal() {
         StringBuilder principals = new StringBuilder();
         Iterator<? extends Object> principalIt = getJAASPrincipals();
         while (principalIt.hasNext()) {

@@ -18,13 +18,7 @@
  */
 package org.apache.cxf.ext.logging;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
+import org.apache.cxf.common.security.SimplePrincipal;
 import org.apache.cxf.ext.logging.event.DefaultLogEventMapper;
 import org.apache.cxf.ext.logging.event.EventType;
 import org.apache.cxf.ext.logging.event.LogEvent;
@@ -32,8 +26,15 @@ import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageImpl;
-
 import org.junit.Test;
+
+import javax.security.auth.Subject;
+import java.security.Principal;
+import java.security.PrivilegedAction;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.apache.cxf.ext.logging.event.DefaultLogEventMapper.MASKED_HEADER_VALUE;
 import static org.junit.Assert.assertEquals;
@@ -147,4 +148,44 @@ public class DefaultLogEventMapperTest {
         assertEquals("PUT[test]", event.getOperationName());
     }
 
+    @Test
+    public void testConcurrency() {
+        DefaultLogEventMapper mapper = new DefaultLogEventMapper();
+        Message message = new MessageImpl();
+        message.put(Message.HTTP_REQUEST_METHOD, "GET");
+        message.put(Message.REQUEST_URI, "test");
+        Exchange exchange = new ExchangeImpl();
+        message.setExchange(exchange);
+
+        Set<Principal> principals = IntStream.range(0, 10000)
+                .mapToObj(i -> new SimplePrincipal("principal-" + i))
+                .collect(Collectors.toSet());
+
+        Subject subject = new Subject(false, principals, Set.of(), Set.of());
+        CountDownLatch countDownLatch = new CountDownLatch(2);
+
+        Subject.doAs(subject, (PrivilegedAction<Void>) () -> {
+            Thread t1 = new Thread(() -> {
+                mapper.getJAASPrincipal();
+                countDownLatch.countDown();
+            });
+
+            Thread t2 = new Thread(() -> {
+                for (int i = 0; i < 10000; i++) {
+                    subject.getPrincipals().add(new SimplePrincipal("new"));
+                }
+                countDownLatch.countDown();
+            });
+
+            t1.start();
+            t2.start();
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            return null;
+        });
+    }
 }
